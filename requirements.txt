@@ -3,3 +3,5 @@ PyPDF2
 ebooklib
 beautifulsoup4
 python-dotenv
+tqdm
+pydub
