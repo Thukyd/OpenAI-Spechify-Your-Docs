@@ -82,13 +82,12 @@ def merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes=30
     combined = AudioSegment.empty()
     part_number = 1
     merged_files = []
-    zero_padding = len(str(len(audio_files)))
 
     for file in tqdm(audio_files, desc="Merging files", unit="file"):
         audio = AudioSegment.from_mp3(file)
         logging.info(f"Processing file: {file}, duration: {len(audio)}ms")
         if len(combined) + len(audio) > max_duration:
-            merged_file = output_dir / f"{file_name}_{str(part_number).zfill(zero_padding)}_of_{str(len(audio_files)).zfill(zero_padding)}.mp3"
+            merged_file = output_dir / f"{file_name}_{str(part_number).zfill(3)}.mp3"
             combined.export(merged_file, format="mp3").close()
             logging.info(f"Merged file created: {merged_file}")
             merged_files.append(merged_file)
@@ -97,13 +96,20 @@ def merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes=30
         combined += audio
 
     if len(combined) > 0:
-        merged_file = output_dir / f"{file_name}_{str(part_number).zfill(zero_padding)}_of_{str(len(audio_files)).zfill(zero_padding)}.mp3"
+        merged_file = output_dir / f"{file_name}_{str(part_number).zfill(3)}.mp3"
         combined.export(merged_file, format="mp3").close()
         logging.info(f"Merged file created: {merged_file}")
         merged_files.append(merged_file)
 
     final_mp3_count += len(merged_files)
-    return len(merged_files)
+    return merged_files
+
+def rename_final_files(output_dir, file_name, total_parts):
+    """Renames the final merged files to include the total number of parts."""
+    for i, file in enumerate(sorted(output_dir.glob(f"{file_name}_*.mp3"))):
+        new_name = output_dir / f"{file_name}_{str(i + 1).zfill(3)}_of_{str(total_parts).zfill(3)}.mp3"
+        file.rename(new_name)
+        logging.info(f"Renamed {file} to {new_name}")
 
 def process_file(file_path, voice, max_duration_minutes=30, delete_downloads=True):
     """Processes a file to convert its content to speech."""
@@ -149,14 +155,18 @@ def process_file(file_path, voice, max_duration_minutes=30, delete_downloads=Tru
 
     # Merge the MP3 files if all parts exist
     if all_parts_exist:
-        merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes)
+        merged_files = merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes)
+        total_merged_parts = len(merged_files)
+
+        # Rename the final merged files to include the total number of parts
+        rename_final_files(output_dir, file_name, total_merged_parts)
         
         # Delete the download directory but only if all parts were merged and the flag is set
         if delete_downloads:
             shutil.rmtree(download_dir)
             logging.info(f"Deleted download directory: {download_dir}")
 
-def main(delete_downloads=True, voice='shimmer', max_duration_minutes=30):
+def main(delete_downloads=False, voice='shimmer', max_duration_minutes=30):
     """
     Main function to process all text, pdf, and epub files in the 'sources' directory.
 
@@ -164,7 +174,7 @@ def main(delete_downloads=True, voice='shimmer', max_duration_minutes=30):
     - delete_downloads (bool): 
         The script downloads the mp3 files to the 'downloads' directory before merging them.
         The orginal mp3 files are small chunks of the text. The merged mp3 files are the final output.
-        This parameter specifies whether to delete the chunked mp3 files from openAI after processing. 
+        This parameter specifies whether to delete the chunked mp3 files from OpenAI after processing. 
         Default is True.
 
     - voice (str): 
