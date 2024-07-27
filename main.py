@@ -8,6 +8,7 @@ from pathlib import Path
 import logging  
 from tqdm import tqdm  # progress bar
 from pydub import AudioSegment  # For handling audio files merging (less single mp3 files)
+import shutil  # For deleting directories
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,6 +20,7 @@ load_dotenv()
 api_calls = 0
 total_duration_ms = 0
 total_characters = 0
+final_mp3_count = 0
 
 def read_text_file(file_path):
     """Reads text from a .txt file."""
@@ -71,16 +73,18 @@ def split_text(text, max_length=3000):
     """Splits text into smaller chunks."""
     return [text[i:i + max_length] for i in range(0, len(text), max_length)]
 
-def merge_mp3_files(output_dir, file_name, max_duration_minutes=30):
+def merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes=30):
     """Merges MP3 files into parts with a maximum duration."""
+    global final_mp3_count
+
     max_duration = max_duration_minutes * 60 * 1000  # convert minutes to milliseconds
-    audio_files = sorted(output_dir.glob(f"{file_name}_*.mp3"))
+    audio_files = sorted(download_dir.glob(f"{file_name}_*.mp3"))
     combined = AudioSegment.empty()
     part_number = 1
     merged_files = []
     zero_padding = len(str(len(audio_files)))
 
-    for file in audio_files:
+    for file in tqdm(audio_files, desc="Merging files", unit="file"):
         audio = AudioSegment.from_mp3(file)
         logging.info(f"Processing file: {file}, duration: {len(audio)}ms")
         if len(combined) + len(audio) > max_duration:
@@ -98,14 +102,16 @@ def merge_mp3_files(output_dir, file_name, max_duration_minutes=30):
         logging.info(f"Merged file created: {merged_file}")
         merged_files.append(merged_file)
 
+    final_mp3_count += len(merged_files)
     return len(merged_files)
 
-def process_file(file_path, voice, max_duration_minutes=30):
+def process_file(file_path, voice, max_duration_minutes=30, delete_downloads=True):
     """Processes a file to convert its content to speech."""
     global total_characters
 
     file_name, file_extension = os.path.splitext(file_path.name)
     output_dir = Path('outputs') / file_name
+    download_dir = Path('downloads') / file_name
 
     if file_extension == '.txt':
         text = read_text_file(file_path)
@@ -121,6 +127,7 @@ def process_file(file_path, voice, max_duration_minutes=30):
         logging.warning(f"No text extracted from {file_path}")
         return
 
+    os.makedirs(download_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
 
     text_chunks = split_text(text)
@@ -128,7 +135,7 @@ def process_file(file_path, voice, max_duration_minutes=30):
     zero_padding = len(str(total_parts))
 
     for i, chunk in enumerate(tqdm(text_chunks, desc=f"Processing {file_name}", unit="chunk")):
-        output_file = output_dir / f"{file_name}_{str(i + 1).zfill(zero_padding)}_of_{str(total_parts).zfill(zero_padding)}.mp3"
+        output_file = download_dir / f"{file_name}_{str(i + 1).zfill(zero_padding)}_of_{str(total_parts).zfill(zero_padding)}.mp3"
         if not output_file.exists():
             total_characters += len(chunk)
             text_to_speech(chunk, output_file)
@@ -136,21 +143,41 @@ def process_file(file_path, voice, max_duration_minutes=30):
             logging.info(f"Chunk {i + 1}/{total_parts} already exists as {output_file}")
 
     all_parts_exist = all(
-        (output_dir / f"{file_name}_{str(i + 1).zfill(zero_padding)}_of_{str(total_parts).zfill(zero_padding)}.mp3").exists()
+        (download_dir / f"{file_name}_{str(i + 1).zfill(zero_padding)}_of_{str(total_parts).zfill(zero_padding)}.mp3").exists()
         for i in range(total_parts)
     )
 
     if all_parts_exist:
-        merge_mp3_files(output_dir, file_name, max_duration_minutes)
+        merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes)
+        
+    if delete_downloads:
+        shutil.rmtree(download_dir)
+        logging.info(f"Deleted download directory: {download_dir}")
 
-def main():
-    """Main function to process all text, pdf, and epub files in the 'sources' directory."""
+def main(delete_downloads=True, voice='shimmer', max_duration_minutes=30):
+    """
+    Main function to process all text, pdf, and epub files in the 'sources' directory.
+
+    Parameters:
+    - delete_downloads (bool): 
+        The script downloads the mp3 files to the 'downloads' directory before merging them.
+        The orginal mp3 files are small chunks of the text. The merged mp3 files are the final output.
+        This parameter specifies whether to delete the chunked mp3 files from openAI after processing. 
+        Default is True.
+
+    - voice (str): 
+        The voice to use for speech synthesis. 
+        See more voices at https://platform.openai.com/docs/guides/text-to-speech/quickstart
+        Default is 'shimmer'.
+
+    - max_duration_minutes (int):
+        The chunked mp3 files are merged into a single mp3 file with a maximum duration.
+        If the total duration of the chunked mp3 files exceeds this value, they are split into multiple parts.
+        Default is 30 min.
+    """
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         raise ValueError("OpenAI API key is not set. Please check your .env file.")
-
-    voice = 'shimmer'
-    max_duration_minutes = 30
 
     sources_dir = Path('sources')
     file_paths = list(sources_dir.glob("*.txt")) + list(sources_dir.glob("*.pdf")) + list(sources_dir.glob("*.epub"))
@@ -158,12 +185,13 @@ def main():
 
     for file_path in file_paths:
         logging.info(f"Processing file: {file_path}")
-        process_file(file_path, voice, max_duration_minutes)
+        process_file(file_path, voice, max_duration_minutes, delete_downloads)
     
     # Print the consumption statistics
     logging.info(f"Total API calls made: {api_calls}")
     logging.info(f"Total audio duration generated: {total_duration_ms / 1000 / 60:.2f} minutes")
     logging.info(f"Total characters processed: {total_characters}")
+    logging.info(f"Total final MP3 files: {final_mp3_count}")
 
 if __name__ == "__main__":
     main()

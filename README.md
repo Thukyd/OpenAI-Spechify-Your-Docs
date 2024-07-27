@@ -61,6 +61,12 @@ python main.py
 
 The MP3 files will be saved in subdirectories named after the original text files, with filenames indicating the total number of parts.
 
+### Customize the script
+
+- You can change the `max_duration` variable in the script to adjust the maximum duration of each MP3 file.
+- You can also decide if you want to keep the intermediate MP3 files by setting the `delete_downloads` variable to `True` or `False`.
+- You can choose another OpenAI voice, the default is `shimmer` but there is a range of [alternative voices available](https://platform.openai.com/docs/guides/text-to-speech/quickstart).
+
 ## Logging
 
 The script uses logging to provide information about its progress. Logs include messages about the overall process. Errors are also logged for easier debugging. A progress bar is displayed during text-to-speech conversion to track the progress.
