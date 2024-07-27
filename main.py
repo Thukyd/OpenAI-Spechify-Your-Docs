@@ -147,12 +147,14 @@ def process_file(file_path, voice, max_duration_minutes=30, delete_downloads=Tru
         for i in range(total_parts)
     )
 
+    # Merge the MP3 files if all parts exist
     if all_parts_exist:
         merge_mp3_files(download_dir, output_dir, file_name, max_duration_minutes)
         
-    if delete_downloads:
-        shutil.rmtree(download_dir)
-        logging.info(f"Deleted download directory: {download_dir}")
+        # Delete the download directory but only if all parts were merged and the flag is set
+        if delete_downloads:
+            shutil.rmtree(download_dir)
+            logging.info(f"Deleted download directory: {download_dir}")
 
 def main(delete_downloads=True, voice='shimmer', max_duration_minutes=30):
     """
