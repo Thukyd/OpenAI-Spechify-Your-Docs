@@ -209,8 +209,8 @@ def main(delete_downloads=True, voice='shimmer', max_duration_minutes=30):
     Parameters:
     - delete_downloads (bool): 
         The script downloads the mp3 files to the 'downloads' directory before merging them.
-        The original mp3 files are small chunks of the text. The merged mp3 files are the final output.
-        This parameter specifies whether to delete the chunked mp3 files from OpenAI after processing. 
+        The original mp3 files are created from small text chunks and roughly 3 min long. The merged mp3 files in output are the final result.
+        This parameter specifies whether to delete the chunked intermediatery mp3 files after processing. 
         Default is True.
 
     - voice (str): 
