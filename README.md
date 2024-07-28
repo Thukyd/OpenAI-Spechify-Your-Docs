@@ -73,6 +73,7 @@ The MP3 files will be saved in subdirectories named after the original text file
 - `python-dotenv`
 - `tqdm` (for displaying a progress bar)
 - `pydub` (for audio merging)
+- `mutagen` (metadata editing - e.g. image embedding)
 
 Additionally, you need to have `ffmpeg` installed on your system. You can install it using:
 
