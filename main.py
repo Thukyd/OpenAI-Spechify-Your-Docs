@@ -197,6 +197,12 @@ def process_file(file_path, voice, max_duration_minutes=30, delete_downloads=Tru
         # Rename the final merged files to include the total number of parts
         rename_final_files(output_dir, file_name, total_merged_parts)
         
+        # Move the source file to the 'done' folder
+        done_dir = Path('done')
+        os.makedirs(done_dir, exist_ok=True)
+        shutil.move(file_path, done_dir / file_path.name)
+        logging.info(f"Moved source file to {done_dir / file_path.name}")
+
         # Delete the download directory but only if all parts were merged and the flag is set
         if delete_downloads:
             shutil.rmtree(download_dir)
